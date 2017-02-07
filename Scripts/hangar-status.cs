@@ -1,64 +1,49 @@
-bool state; 
-List<IMyInteriorLight>[] lights; 
-IMySensorBlock[] sensors;
-string oldArgument;
+//Setting sensor action arguments:
+//when criteria in range: <groupName>;<something>
+//when criteria leaves space: <groupName>;<somethingDifferent>
+//Example: 
+//Arguments: 1;in, 1;out
+//Light group name: *Light 1*
+static Color occupiedColor = new Color(196,48,48);  
+static Color FreeColor = new Color(50,149,45);  
  
+bool state;  
+List<IMyInteriorLight> lights; 
+  
 public Program() { 
-    string[] storedParameter = Storage.Split(';'); 
-    //Load current State 
-    if (!bool.TryParse(storedParameter[0], out state)) { // Couldnt parse -> default Value false 
-        state = false;
-    } 
-     
-    //Load old Parameters 
-    if(storedParameter.Length<=1){ // List of Parameters too short -> default Value "" 
-        oldArgument = ""; 
-    }else{ 
-        oldArgument = storedParameter[1]; 
-    } 
+    //Load current State  
+    if (!bool.TryParse(Storage, out state)) { // Couldnt parse -> default Value false  
+        state = false; 
+    }  
+}  
+  
+public void Save() {  
+    //Save state variable 
+    Storage = Convert.ToString(state);    
+}  
+  
+public void Main(string argument) { 
+    string[] arguments = argument.Split(';');
+    prepareLightGroup(arguments[0]);
+    // If Lights are green (!state) and need to be changed to red (isActive()) 
+    if(!state){ 
+        setColor(occupiedColor, true);  
+    // If Lights are red and need to be changed to green 
+    }else if(state){       
+        setColor(FreeColor, false);  
+    }  
+} 
+  
+// prepare the lights  
+public void prepareLightGroup(string groupName){  
+    var lightsGroup = GridTerminalSystem.GetBlockGroupWithName("Light " + groupName);  
+    lights = new List<IMyInteriorLight>(); 
+    lightsGroup.GetBlocksOfType(lights); 
 } 
  
-public void Save() { 
-    Storage = oldArgument + ";" + Convert.ToString(state);   
-} 
- 
-public void Main(string argument) {
-    bool changedArg = false;
-    if (argument != oldArgument && argument != ""){ //New Groups defined 
-        initOnDemand(argument); 
-        oldArgument = argument;
-        changedArg = true;
+public void setColor(Color color, bool newState){ 
+    foreach (IMyInteriorLight light in lights){ 
+        light.SetValue("Color", color); 
     } 
-    Echo("Found Lights: " + lights[0].Count + "\nSensor: " + (sensors.Length == 1) + "\nNew Args: " + changedArg);
-} 
- 
-// Prepares the Sensor- and Lightreferenzes based on the argument 
-public void initOnDemand(string argument){ 
-    string[] groups = argument.Split(';'); 
-    prepareSensors(groups); 
-    prepareLightGroups(groups); 
-} 
- 
-// Get the Sensor of a specific Group 
-public void prepareSensors(string[] groups){ 
-    string[] sensorNames = new string[groups.Length]; 
-    sensors = new IMySensorBlock[groups.Length]; 
-     
-    for (int i = groups.Length-1; i >= 0; i--){
-        Echo("Sensor " + groups[i]);
-        sensors[i] = GridTerminalSystem.GetBlockWithName("Sensor " + groups[i]) as IMySensorBlock; 
-    } 
-} 
- 
-// Get the lights of a specific Group 
-public void prepareLightGroups(string[] groups){ 
-    string[] LightGroupNames = new string[groups.Length]; 
-    lights = new List<IMyInteriorLight>[groups.Length]; 
-     
-    for (int i = groups.Length-1; i >= 0; i--){
-        Echo("Light " + groups[i]);
-        var lightsGroup = GridTerminalSystem.GetBlockGroupWithName("Light " + groups[i]); 
-        lights[i] = new List<IMyInteriorLight>();
-        lightsGroup.GetBlocksOfType(lights[i]);
-    } 
+    state = newState; 
 }
