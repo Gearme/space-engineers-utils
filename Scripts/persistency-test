@@ -1,0 +1,107 @@
+//Example-Code for persistent Variables & Dynamic Variable
+//This program switches the color of groups of lights depending on the assosiated sensors.
+//This is achieved by looking for sensors and groups of lights with names that are contained in the given argument.
+//Example:
+//Argument: "1;2"
+//Sensors: Sensor1, Sensor2
+//Light Groups: *Light1*, *Light2*
+//
+//Please note that this program is ment as an example. the same functionality can be acieved with a
+//much simpler program that is triggered by the sensor directly instead of reading the sensor's state.
+//
+//This Program saves two variables between sessions:
+//state: a State that remebers the current state of the lights. This is to ensure that the lights are not set
+//by the program on each call
+//
+//oldArgument: This variable serves as a check-value to see if the current call-argument differs from the last call-argument and reload the necessary groups of blocks
+static Color occupiedColor = new Color(196,48,48); 
+static Color FreeColor = new Color(50,149,45); 
+
+bool state; 
+List<IMyInteriorLight>[] lights; 
+IMySensorBlock[] sensors;
+string oldArgument;
+ 
+public Program() { 
+    //Split Storage string to get a list of strings that can be parsed to recieve the stored variables
+    //Storage is a persistend Variable that is provided by Space Engineers, for more info see http://forum.keenswh.com/threads/tutorial-constructor-and-save.7382338/
+    string[] storedParameter = Storage.Split(';');
+    
+    //Load current State 
+    if (!bool.TryParse(storedParameter[0], out state)) { // Couldnt parse -> default Value false 
+        state = false;
+    } 
+     
+    //Load old Parameters 
+    if(storedParameter.Length<=1){ // List of Parameters too short -> default Value "" 
+        oldArgument = ""; 
+    }else{ 
+        oldArgument = storedParameter[1]; 
+    } 
+} 
+ 
+public void Save() { 
+    //Save variables as a single string
+    Storage = oldArgument + ";" + Convert.ToString(state);   
+} 
+ 
+public void Main(string argument) {
+    //Check if a new argument is recieved
+    if (argument != oldArgument && argument != ""){
+        initOnDemand(argument); //Load new Groups
+        oldArgument = argument; //remember last argument
+    } 
+    Echo("Found Lights: " + lights[0].Count + "\nSensor: " + (sensors.Length == 1) + "\nNew Args: " + changedArg);
+    if (oldArgument != ""){
+        for (int i = sensors.Length-1; i >= 0; i--){ 
+            // If Lights are green (!state) and need to be changed to red (isActive())
+            if(sensors[i].IsActive && !state){
+                foreach (IMyInteriorLight light in lights[i]){ 
+                    setColor(light, occupiedColor); 
+                    state = true; 
+                } 
+            // If Lights are red and need to be changed to green
+            }else if(!sensors[i].IsActive && state){ 
+                foreach (IMyInteriorLight light in lights[i]){ 
+                    setColor(light, FreeColor); 
+                    state = false; 
+                } 
+            } 
+        }
+    }
+} 
+ 
+// Prepares the Sensor- and Lightreferenzes based on the argument 
+public void initOnDemand(string argument){ 
+    string[] groups = argument.Split(';');
+    prepareSensors(groups); 
+    prepareLightGroups(groups); 
+} 
+ 
+// Get the Sensor of a specific Group 
+public void prepareSensors(string[] groups){ 
+    string[] sensorNames = new string[groups.Length]; 
+    sensors = new IMySensorBlock[groups.Length]; 
+     
+    for (int i = groups.Length-1; i >= 0; i--){
+        Echo("Sensor " + groups[i]);
+        sensors[i] = GridTerminalSystem.GetBlockWithName("Sensor " + groups[i]) as IMySensorBlock; 
+    } 
+} 
+ 
+// Get the lights of a specific Group 
+public void prepareLightGroups(string[] groups){ 
+    string[] LightGroupNames = new string[groups.Length]; 
+    lights = new List<IMyInteriorLight>[groups.Length]; 
+     
+    for (int i = groups.Length-1; i >= 0; i--){
+        Echo("Light " + groups[i]);
+        var lightsGroup = GridTerminalSystem.GetBlockGroupWithName("Light " + groups[i]); 
+        lights[i] = new List<IMyInteriorLight>();
+        lightsGroup.GetBlocksOfType(lights[i]);
+    } 
+}
+
+public void setColor(IMyInteriorLight light, Color color){
+    light.SetValue("Color", color);
+}
